@@ -1,0 +1,11 @@
+[Unit]
+Description=Push button player mpg123 openpty
+After=network.target sound.target
+
+[Service]
+ExecStart=/home/ubuntu/music/plaympg123_2.py
+KillMode=mixed
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
