@@ -8,13 +8,15 @@ from threading import Thread
 
 # Global variables with module-local scope (cannot export these dunders)
 __process_running__ = False  
-__max_list__ = 1
+__max_list__ = 0
 __return_code__ = None
-__decimal__ = 0
+__decimal__ = 1
 __p__ = None
 __dir__ = "/home/ubuntu/music/media/"
 __pty_master__ = None
 __pty_slave__ = None
+__playing__ = False
+
 class AudioEngineUnavailable(Exception):
     pass 
 
@@ -125,16 +127,21 @@ def handleButtonNext(channel):
     global __max_list__
     global __dir__
     global __pty__
-    __p__.terminate()   
-    time.sleep(0.1)
-    __decimal__ = __decimal__ + 1
-    if (__decimal__  > __max_list__):
-        __decimal__=(__decimal__ % __max_list__)
+    global __process_running__
+    global __playing__
+    if (__playing__ == True):
+        __p__.terminate()   
+        __decimal__ = __decimal__ + 1
+        time.sleep(0.1)
+        if (__decimal__  > __max_list__):
+            __decimal__=(__decimal__ % __max_list__)
+        else:
+            pass 
+        file  = __dir__ + str(__decimal__) + '.mp3'
+        print("play:"+file)
+        __p__ = play_file(file, __pty_master__)
     else:
-        pass 
-    file  = __dir__ + str(__decimal__) + '.mp3'
-    print("play:"+file)
-    __p__ = play_file(file, __pty_master__)
+        pass
 
 def handleButtonPre(channel):
     global __decimal__
@@ -142,33 +149,71 @@ def handleButtonPre(channel):
     global __max_liist__
     global __dir__
     global __pty__
-    __p__.terminate()
-    time.sleep(0.1) 
-    __decimal__ = __decimal__ - 1
-    if (__decimal__ <=0):
-       __decimal__= __max_list__
+    global __process_running__
+    global __playing__
+    if (__playing__ == True):
+        __p__.terminate()
+        __decimal__ = __decimal__ - 1
+        time.sleep(0.1) 
+        if (__decimal__ <=0):
+           __decimal__= __max_list__
+        else:
+            pass
+        file  = __dir__ + str(__decimal__) + '.mp3'
+        print("play:"+file)
+        __p__ = play_file(file, __pty_master__)
     else:
         pass
-    file  = __dir__ + str(__decimal__) + '.mp3'
-    print("play:"+file)
-    __p__ = play_file(file, __pty_master__)
-
 def handleButtonPlayPause(channel):
-    os.write(__pty_slave__, b's')
-    #__p__.stdin.write(b's')
-    #__p__.stdin.flush()
-    time.sleep(0.1)
+    global __playing__
+    if (__process_running__ == True):
+        os.write(__pty_slave__, b's')
+        __playing__ = not __playing__
+        #__p__.stdin.write(b's')
+        #__p__.stdin.flush()
+        time.sleep(0.1)
 
 def handleButtonMute(channel):
-    os.write(__pty_slave__, b'u')
+    global __playing__
+    if (__playing__ == True):
+        os.write(__pty_slave__, b'u')
+    else:
+       pass
     #__p__.stdin.write(b'u')
     #__p__.stdin.flush()
 
 def handleButtonBack(channel):
-    os.write(__pty_slave__, b'b')
+    global __playing__
+    if (__playing__ == True):
+        os.write(__pty_slave__, b'b')
+    else:
+        pass
     #__p__.stdin.write(b'b')
     #__p__.stdin.flush()
     #time.sleep(0.1)
+
+def handlePlayNext(channel):
+    global __decimal__
+    global __p__
+    global __max_list__
+    global __dir__
+    global __pty__
+    global __process_running__
+ 
+    if (False):
+        if (__process_running__ == True):
+            __p__.terminate()   
+            time.sleep(0.1)
+            __decimal__ = __decimal__ + 1
+            if (__decimal__  > __max_list__):
+                __decimal__=(__decimal__ % __max_list__)
+            else:
+                pass 
+            file  = __dir__ + str(__decimal__) + '.mp3'
+            print("play:"+file)
+            __p__ = play_file(file, __pty_master__)
+        else:
+            pass
 
 def get_files(root):
     files = []
@@ -212,25 +257,20 @@ if __name__ == '__main__':
     print ('--- Available mp3 files ---')
     print(mp3_list)
     __max_list__  = len(mp3_list) 
-    print("Play: " + __dir__ + "1.mp3")
     
    # add openpty
     __pty_master__, __pty_slave__ = os.openpty()
     __p__ = play_file( __dir__+"1.mp3", __pty_master__ )
   
-        # We need a way to tell if a song is already playing. Start a 
-        # thread that tells if the process is running and that sets
-        # a global flag with the process running status.
+   # We need a way to tell if a song is already playing. Start a 
+   # thread that tells if the process is running and that sets
+   # a global flag with the process running status.
     monitor_thread = Thread(target=process_monitor,args=(__p__,)) 
     monitor_thread.start()
-
-
-
-    time.sleep(0.3)
+    time.sleep(0.1)
     os.write(__pty_slave__, b's')    
-#    __p__.stdin.write(b's')
-#    __p__.stdin.flush()
-    print ('--- Press button #1 to play mp3 ---')
+    __playing__ = False
+    print ('--- Press button #play to start playing mp3 ---')
 
     GPIO.add_event_detect(12, GPIO.FALLING, callback=handleFile, bouncetime=500)
     GPIO.add_event_detect(16, GPIO.FALLING, callback=handleFile, bouncetime=500)
@@ -244,7 +284,9 @@ if __name__ == '__main__':
     GPIO.add_event_detect(33, GPIO.FALLING, callback=handleButtonPre, bouncetime=500)
     GPIO.add_event_detect(35, GPIO.FALLING, callback=handleButtonBack, bouncetime=500)
     GPIO.add_event_detect(37, GPIO.FALLING, callback=handleButtonMute, bouncetime=500)
-
+    
+#    t = threading.Timer(1, handlePlayNext) 
+    
     while True:
        time.sleep(0.1)
        pass
