@@ -5,7 +5,7 @@ import subprocess
 import time
 import glob
 from threading import Thread
-
+import threading
 # Global variables with module-local scope (cannot export these dunders)
 __process_running__ = False  
 __max_list__ = 0
@@ -16,7 +16,8 @@ __dir__ = "/home/ubuntu/music/media/"
 __pty_master__ = None
 __pty_slave__ = None
 __playing__ = False
-
+__mp3_list__ = None
+__mp3_list__z__ = None
 class AudioEngineUnavailable(Exception):
     pass 
 
@@ -26,7 +27,7 @@ def play_file(mp3_file, pty):
     try:
         command = ['mpg123', '-C', '-q', mp3_file]
         p = subprocess.Popen( command, 
-#                             'mpg123', # The program to launch in the subprocess
+#                             ['mpg123', # The program to launch in the subprocess
 #                             '-C',     # Enable commands to be read from stdin
 #                             '-q',     # Be quiet
 #                              mp3_file],
@@ -38,14 +39,16 @@ def play_file(mp3_file, pty):
     except FileNotFoundError as e:
         raise AudioEngineUnavailable(f'AudioEngineUnavailable: {e}')
 
-def play_list(mp3_list):
+def play_list(mp3_list, pty):
     try:
-        p = subprocess.Popen(['mpg123', # The program to launch in the subprocess
-                              '-C',     # Enable commands to be read from stdin
-                              '-q',     # Be quiet
-                              '-z']     # 
-                              +mp3_list,
-                              stdin=subprocess.PIPE, # Pipe input via bytes
+        command = ['mpg123', '-C', '-q','-z'] + mp3_list
+        p = subprocess.Popen( command,
+#                              ['mpg123', # The program to launch in the subprocess
+#                              '-C',     # Enable commands to be read from stdin
+#                              '-q',     # Be quiet
+#                              '-z']     # 
+#                              +mp3_list,
+                              stdin=pty,  # Pipe input via bytes
                               stdout=None,   
                               stderr=None
                               )
@@ -116,7 +119,7 @@ def handleFile(channel):
     __decimal__ = __decimal__ % __max_list__
     __p__.terminate() 
     time.sleep(0.3)
-    file = __dir__ + mp3_list[__decimal__]
+    file = __dir__ + __mp3_list__[__decimal__]
     print("play:"+file)
     __p__ = play_file(file, __pty_master__)
 
@@ -124,6 +127,7 @@ def handleButtonNext(channel):
     global __decimal__
     global __p__
     global __max_list__
+    global __mp3_list__
     global __dir__
     global __process_running__
     global __playing__
@@ -134,8 +138,7 @@ def handleButtonNext(channel):
             __decimal__= 0 
         else:
             pass
- 
-        file = __dir__ + mp3_list[__decimal__]
+        file = __dir__ + __mp3_list__[__decimal__]
         print("play:"+file)
         __p__ = play_file(file, __pty_master__)
         time.sleep(0.1)
@@ -148,6 +151,7 @@ def handleButtonPre(channel):
     global __decimal__
     global __p__
     global __max_liist__
+    global __mp3_list__
     global __dir__
     global __process_running__
     global __playing__
@@ -159,7 +163,7 @@ def handleButtonPre(channel):
            __decimal__= __max_list__ - 1
         else:
             pass
-        file = __dir__ + mp3_list[__decimal__]
+        file = __dir__ + __mp3_list__[__decimal__]
         print("play:"+file)
         __p__ = play_file(file, __pty_master__)
         time.sleep(0.1)
@@ -172,6 +176,7 @@ def handleButtonPlayPause(channel):
     global __playing__
     global __process_running__
     global __p__
+    global __mp3_list__
     time.sleep(0.1)
     if (__process_running__ == True):
         time.sleep(0.1)
@@ -180,7 +185,7 @@ def handleButtonPlayPause(channel):
         #__p__.stdin.write(b's')
         #__p__.stdin.flush()
     else:
-        file = __dir__ + mp3_list[__decimal__]
+        file = __dir__ + __mp3_list__[__decimal__]
         __p__ = play_file(file, __pty_master__)
         print("play:"+file)
         time.sleep(0.1)
@@ -221,7 +226,7 @@ def handlePlayNext(channel):
             __decimal__=(__decimal__ % __max_list__)
         else:
             pass
-        file = __dir__ + mp3_list[__decimal__]
+        file = __dir__ + __mp3_list__[__decimal__]
         __p__ = play_file(file, __pty_master__)
     else:
         pass
@@ -238,6 +243,31 @@ def get_files(root):
     scan_dir(root)
     return files
 
+def continuePlaying():
+    global __playing__
+    global __process_running__
+    global __pty_master__
+    global __mp3_list_z__ 
+    global __p__
+    if (( __process_running__ == False ) and (__playing__ == True )):
+        print("******************************-")
+        print("running:"+str(__process_running__))
+        print("playing:"+str(__playing__))
+        __p__ = play_list(__mp3_list_z__, __pty_master__)
+        time.sleep(0.1)
+        monitor_thread = Thread(target=process_monitor,args=(__p__,)) 
+        monitor_thread.start()
+        __playing__ = True
+        print("******************************-")
+        print("running:"+str(__process_running__))
+        print("playing:"+str(__playing__))
+        threading.Timer( 3 , continuePlaying ).start()
+    else:
+        print("--------------test----------------")
+        print("running:"+str(__process_running__))
+        print("playing:"+str(__playing__))
+        threading.Timer( 3 , continuePlaying ).start()
+        
 if __name__ == '__main__':
     GPIO.setmode(GPIO.BOARD)
    # gpio binary  
@@ -253,21 +283,23 @@ if __name__ == '__main__':
     GPIO.setup(33, GPIO.IN, pull_up_down=GPIO.PUD_UP)
     GPIO.setup(35, GPIO.IN, pull_up_down=GPIO.PUD_UP)
     GPIO.setup(37, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+
+    threading.Timer( 3 , continuePlaying ).start()
 #file list Method 1
 #    mp3_list = [ f for f in os.listdir('/home/ubuntu/music/media/.') if f[-4:] == '.mp3' ]
 #    mp3_list.sort(key=lambda x:int(x[:-4]))
 #file list Methos 2
-#    mp3_list = glob.glob(r'/home/ubuntu/music/media/*.mp3')
+    __mp3_list_z__ = glob.glob(r'/home/ubuntu/music/media/*.mp3')
 #    mp3_list.sort(key=lambda x:int(x[25:-4]))
 #file list Method 3
-    mp3_list = get_files(__dir__)
+    __mp3_list__ = get_files(__dir__)
 #    mp3_list.sort(key=lambda x:int(x[:-4]))
 
-    if not (len(mp3_list) > 0):
+    if not (len(__mp3_list__) > 0):
         print ("No mp3 files found!")
     print ('--- Available mp3 files ---')
-    print(mp3_list)
-    __max_list__  = len(mp3_list) 
+    print(__mp3_list__)
+    __max_list__  = len(__mp3_list__) 
     
    # add openpty
     __pty_master__, __pty_slave__ = os.openpty()
@@ -294,9 +326,7 @@ if __name__ == '__main__':
     GPIO.add_event_detect(33, GPIO.FALLING, callback=handleButtonPre, bouncetime=500)
     GPIO.add_event_detect(35, GPIO.FALLING, callback=handleButtonBack, bouncetime=500)
     GPIO.add_event_detect(37, GPIO.FALLING, callback=handleButtonMute, bouncetime=500)
-    
-#    t = threading.Timer(1, handlePlayNext) 
-    
+   
     while True:
        time.sleep(0.1)
        pass
