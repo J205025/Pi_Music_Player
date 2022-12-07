@@ -18,6 +18,10 @@ __pty_slave__ = None
 __playing__ = False
 __mp3_list__ = None
 __mp3_list__z__ = None
+__index__ = 4
+__timer_running__ = False
+__Number4d__ = [ 0, 0, 0, 0 ]
+__t__ = None
 class AudioEngineUnavailable(Exception):
     pass 
 
@@ -97,31 +101,88 @@ def get_return_code():
     """
     return __return_code__
     
-def handleFile(channel):
+def pressedNumber(channel):
+    if(channel ==12):
+        Number = 1
+        print("1 Pressed")
+    elif(channel ==16):
+        Number = 2
+        print("2 Pressed")
+    elif(channel ==18):
+        Number = 3
+        print("3 Pressed")
+    elif(channel ==11):
+        Number = 4
+        print("4 Pressed")
+    elif(channel ==13):
+        Number = 5
+        print("5 Pressed")
+    elif(channel ==15):
+        Number = 6
+        print("6 Pressed")
+    return Number
+def playSelected():
+    global __p__
+    global __playing__
+    global __dir__
+    global __mp3_list__
+    global __process_running__
+    global __pty_master__
+    global __Number4d__
+    global __decimal__
+    global __index__
+    if (__process_running__ == True):
+        __p__.terminate() 
+        time.sleep(0.1)
+    file = __dir__ + __mp3_list__[__decimal__]
+    print("play:"+file)
+    __p__ = play_file(file, __pty_master__)
+    monitor_thread = Thread(target=process_monitor,args=(__p__,)) 
+    monitor_thread.start()
+    __playing__ = True
+    __timer_running__ = False
+    __Number4d__ = [0, 0, 0, 0]
+    __index__ = 4
+
+def convert(list):
+    res = sum(d * 10**i for i, d in enumerate(list[::-1]))
+    return(res)
+
+def handleSelectSong(channel):
     global __decimal__
     global __p__
     global __max_list__
     global __dir__
-    D0 = GPIO.input(12)
-    D1 = GPIO.input(16)
-    D2 = GPIO.input(18)
-    D3 = GPIO.input(11)
-    D4 = GPIO.input(13)
-    D5 = GPIO.input(15)
-    print('\n')
-    print('D0= '+str(D0))
-    print('D1= '+str(D1))
-    print('D2= '+str(D2))
-    print('D3= '+str(D3))
-    print('D4= '+str(D4))
-    print('D5= '+str(D5))
-    __decimal__ = D0+(D1*2)+(D2*4)+(D3*8)+(D4*16)+(D5*32)
-    __decimal__ = __decimal__ % __max_list__
-    __p__.terminate() 
-    time.sleep(0.3)
-    file = __dir__ + __mp3_list__[__decimal__]
-    print("play:"+file)
-    __p__ = play_file(file, __pty_master__)
+    global __playing__
+    global __index__
+    global __Number4d__
+    global __timer_running__
+    global __t__
+    if (__timer_running__ == True):
+        __t__.cancel()
+    Number = pressedNumber(channel)
+    __index__ = __index__ - 1
+    print("__index__:"+ str(__index__))
+    if(__index__ < 0):
+        __index__ = 3 
+    if (__index__== 3):
+        __Number4d__[__index__] = Number
+    elif (__index__== 2):
+        __Number4d__[__index__] = Number
+    elif(__index__== 1):
+        __Number4d__[__index__] = Number
+    else:
+        __Number4d__[__index__] = Number
+    print("__Number__4d[]:" + str(__Number4d__))
+    res = convert(__Number4d__)
+    print("res:"+str(res))
+    __decimal__ = ( res % __max_list__) - 1
+    if (__decimal__ == -1 ):
+       __decimal__ = __decimal__ + __max_list__
+    print("the NO."+str(__decimal__ + 1)+" mp3 will be played")
+    __t__ = threading.Timer(3, playSelected)
+    __t__.start()
+    __timer_running__ = True
 
 def handleButtonNext(channel):
     global __decimal__
@@ -210,7 +271,7 @@ def handleButtonBack(channel):
     #__p__.stdin.write(b'b')
     #__p__.stdin.flush()
     #time.sleep(0.1)
-
+"""
 def handlePlayNext(channel):
     global __decimal__
     global __p__
@@ -230,7 +291,7 @@ def handlePlayNext(channel):
         __p__ = play_file(file, __pty_master__)
     else:
         pass
-
+"""
 def get_files(root):
     files = []
     def scan_dir(dir):
@@ -258,15 +319,11 @@ def continuePlaying():
         monitor_thread = Thread(target=process_monitor,args=(__p__,)) 
         monitor_thread.start()
         __playing__ = True
-        print("******************************-")
-        print("running:"+str(__process_running__))
-        print("playing:"+str(__playing__))
-        threading.Timer( 3 , continuePlaying ).start()
+#        print("playing:"+str(__playing__))
+        threading.Timer( 13 , continuePlaying ).start()
     else:
-        print("--------------test----------------")
-        print("running:"+str(__process_running__))
-        print("playing:"+str(__playing__))
-        threading.Timer( 3 , continuePlaying ).start()
+#        print("playing:"+str(__playing__))
+        threading.Timer( 13 , continuePlaying ).start()
         
 if __name__ == '__main__':
     GPIO.setmode(GPIO.BOARD)
@@ -290,10 +347,10 @@ if __name__ == '__main__':
 #    mp3_list.sort(key=lambda x:int(x[:-4]))
 #file list Methos 2
     __mp3_list_z__ = glob.glob(r'/home/ubuntu/music/media/*.mp3')
-#    mp3_list.sort(key=lambda x:int(x[25:-4]))
+    __mp3_list_z__.sort(key=lambda x:int(x[25:-4]))
 #file list Method 3
     __mp3_list__ = get_files(__dir__)
-#    mp3_list.sort(key=lambda x:int(x[:-4]))
+    __mp3_list__.sort(key=lambda x:int(x[:-4]))
 
     if not (len(__mp3_list__) > 0):
         print ("No mp3 files found!")
@@ -314,12 +371,12 @@ if __name__ == '__main__':
     __playing__ = False
     print ('--- Press button #play to start playing mp3 ---')
 
-    GPIO.add_event_detect(12, GPIO.FALLING, callback=handleFile, bouncetime=500)
-    GPIO.add_event_detect(16, GPIO.FALLING, callback=handleFile, bouncetime=500)
-    GPIO.add_event_detect(18, GPIO.FALLING, callback=handleFile, bouncetime=500)
-    GPIO.add_event_detect(11, GPIO.FALLING, callback=handleFile, bouncetime=500)
-    GPIO.add_event_detect(13, GPIO.FALLING, callback=handleFile, bouncetime=500)
-    GPIO.add_event_detect(15, GPIO.FALLING, callback=handleFile, bouncetime=500)
+    GPIO.add_event_detect(12, GPIO.FALLING, callback=handleSelectSong, bouncetime=500)
+    GPIO.add_event_detect(16, GPIO.FALLING, callback=handleSelectSong, bouncetime=500)
+    GPIO.add_event_detect(18, GPIO.FALLING, callback=handleSelectSong, bouncetime=500)
+    GPIO.add_event_detect(11, GPIO.FALLING, callback=handleSelectSong, bouncetime=500)
+    GPIO.add_event_detect(13, GPIO.FALLING, callback=handleSelectSong, bouncetime=500)
+    GPIO.add_event_detect(15, GPIO.FALLING, callback=handleSelectSong, bouncetime=500)
 
     GPIO.add_event_detect(29, GPIO.FALLING, callback=handleButtonPlayPause, bouncetime=500)
     GPIO.add_event_detect(31, GPIO.FALLING, callback=handleButtonNext, bouncetime=500)
