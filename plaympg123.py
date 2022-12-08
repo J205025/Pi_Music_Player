@@ -165,14 +165,10 @@ def handleSelectSong(channel):
     print("__index__:"+ str(__index__))
     if(__index__ < 0):
         __index__ = 3 
-    if (__index__== 3):
-        __Number4d__[__index__] = Number
-    elif (__index__== 2):
-        __Number4d__[__index__] = Number
-    elif(__index__== 1):
-        __Number4d__[__index__] = Number
-    else:
-        __Number4d__[__index__] = Number
+    __Number4d__[0] = __Number4d__[1] 
+    __Number4d__[1] = __Number4d__[2] 
+    __Number4d__[2] = __Number4d__[3] 
+    __Number4d__[3] = Number 
     print("__Number__4d[]:" + str(__Number4d__))
     res = convert(__Number4d__)
     print("res:"+str(res))
